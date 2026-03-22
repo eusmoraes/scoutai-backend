@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCOUT AI — Prognósticos ao Vivo</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#080b10;--surface:#0e1420;--surface2:#141c2e;
+    --border:rgba(255,255,255,0.07);--accent:#00e5a0;--accent2:#0084ff;
+    --text:#e8edf5;--muted:#5a6680;--muted2:#8898b8;
+    --green:#00e5a0;--yellow:#ffb800;--red:#ff3d5a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh}
+  body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:linear-gradient(rgba(0,229,160,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,160,0.025) 1px,transparent 1px);
+    background-size:40px 40px}
+
+  header{position:sticky;top:0;z-index:100;background:rgba(8,11,16,0.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 2rem}
+  .header-inner{max-width:1300px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:62px}
+  .logo{display:flex;align-items:center;gap:10px}
+  .logo-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--accent),#007a52);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px}
+  .logo-text{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:2px}
+  .logo-text span{color:var(--accent)}
+  .badge-live{background:rgba(255,61,90,0.15);border:1px solid rgba(255,61,90,0.4);color:var(--red);font-family:'JetBrains Mono',monospace;font-size:0.68rem;font-weight:600;padding:3px 8px;border-radius:4px;letter-spacing:1px;animation:pulseRed 2s infinite}
+  @keyframes pulseRed{0%,100%{opacity:1}50%{opacity:0.4}}
+  .date-tag{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--muted)}
+  .server-status{font-family:'JetBrains Mono',monospace;font-size:0.68rem;padding:3px 8px;border-radius:4px;border:1px solid}
+  .server-status.ok{color:var(--green);border-color:rgba(0,229,160,0.3);background:rgba(0,229,160,0.08)}
+  .server-status.err{color:var(--red);border-color:rgba(255,61,90,0.3);background:rgba(255,61,90,0.08)}
+  .server-status.checking{color:var(--muted2);border-color:var(--border)}
+
+  main{max-width:1300px;margin:0 auto;padding:2rem;position:relative;z-index:1}
+
+  /* CONFIG BANNER */
+  #config-banner{background:rgba(255,184,0,0.06);border:1px solid rgba(255,184,0,0.25);border-radius:12px;padding:16px 20px;margin-bottom:1.5rem;display:flex;align-items:center;gap:14px}
+  #config-banner .icon{font-size:1.4rem;flex-shrink:0}
+  #config-banner p{font-size:0.82rem;color:var(--muted2);line-height:1.6}
+  #config-banner strong{color:var(--yellow)}
+  #config-banner code{font-family:'JetBrains Mono',monospace;font-size:0.78rem;background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--accent)}
+
+  /* LOADING */
+  #loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px}
+  .spinner{width:48px;height:48px;border:3px solid var(--surface2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.75s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .load-txt{font-family:'JetBrains Mono',monospace;font-size:0.85rem;color:var(--muted2)}
+
+  /* ERROR */
+  #error-screen{display:none;text-align:center;padding:60px 20px}
+  .err-card{background:var(--surface);border:1px solid rgba(255,61,90,0.3);border-radius:16px;padding:32px;max-width:500px;margin:0 auto}
+  .err-icon{font-size:2.5rem;margin-bottom:10px}
+  .err-title{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:var(--red);margin-bottom:8px;letter-spacing:2px}
+  .err-msg{font-size:0.83rem;color:var(--muted2);line-height:1.65;margin-bottom:16px}
+  .btn-retry{background:var(--accent);color:#000;border:none;border-radius:9px;padding:10px 22px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;transition:all 0.2s}
+  .btn-retry:hover{background:#00c98a}
+
+  /* APP */
+  #app{display:none}
+  .info-bar{background:rgba(0,132,255,0.06);border:1px solid rgba(0,132,255,0.18);border-radius:10px;padding:11px 16px;font-size:0.79rem;color:var(--muted2);display:flex;align-items:center;gap:10px;margin-bottom:1.5rem}
+  .info-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0;box-shadow:0 0 8px var(--accent)}
+
+  /* FILTERS */
+  .filters{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:1.4rem}
+  .f-label{font-size:0.72rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-right:2px}
+  .f-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted2);padding:5px 13px;border-radius:6px;font-size:0.78rem;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.2s}
+  .f-btn:hover,.f-btn.on{border-color:var(--accent);color:var(--accent);background:rgba(0,229,160,0.06)}
+  .f-div{width:1px;height:20px;background:var(--border)}
+
+  .sec-hd{display:flex;align-items:baseline;gap:11px;margin-bottom:1.3rem}
+  .sec-title{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px}
+  .sec-count{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--muted);background:var(--surface);border:1px solid var(--border);padding:2px 8px;border-radius:20px}
+
+  /* TOP PICKS */
+  .picks-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:2.5rem}
+  .pcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;position:relative;overflow:hidden;transition:all 0.22s}
+  .pcard::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+  .pcard.g::before{background:var(--green)}.pcard.y::before{background:var(--yellow)}.pcard.r::before{background:var(--red)}
+  .pcard:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,0.4)}
+  .prank{font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:rgba(255,255,255,0.05);position:absolute;top:6px;right:10px;line-height:1}
+  .pleague{font-size:0.63rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px}
+  .pmatch{font-size:0.87rem;font-weight:600;margin-bottom:6px;line-height:1.3}
+  .pmkt{font-size:0.73rem;color:var(--muted2);margin-bottom:11px}
+  .pfoot{display:flex;align-items:center;justify-content:space-between}
+  .ppct{font-family:'JetBrains Mono',monospace;font-size:1.25rem;font-weight:700}
+  .ppct.g{color:var(--green)}.ppct.y{color:var(--yellow)}.ppct.r{color:var(--red)}
+
+  /* GAME CARD */
+  .games{display:flex;flex-direction:column;gap:13px}
+  .gcard{background:var(--surface);border:1px solid var(--border);border-radius:15px;overflow:hidden;animation:fadeUp 0.35s ease forwards;transition:border-color 0.25s}
+  .gcard:hover{border-color:rgba(255,255,255,0.11)}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+  .ghead{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);cursor:pointer;gap:12px}
+  .gmeta{display:flex;align-items:center;gap:9px;flex-shrink:0;min-width:190px}
+  .league-badge{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-size:0.7rem;color:var(--muted2);font-weight:500;white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis}
+  .gtime{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--muted);white-space:nowrap}
+  .glive{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--red);background:rgba(255,61,90,0.1);border:1px solid rgba(255,61,90,0.3);border-radius:4px;padding:2px 6px;animation:pulseRed 1.5s infinite}
+
+  .gteams{display:flex;align-items:center;gap:12px;flex:1;justify-content:center;min-width:0}
+  .team{display:flex;align-items:center;gap:7px;min-width:0}
+  .tname{font-weight:600;font-size:0.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+  .tlogo{width:26px;height:26px;object-fit:contain;border-radius:50%;background:var(--surface2);border:1px solid var(--border);flex-shrink:0}
+  .score{font-family:'JetBrains Mono',monospace;font-size:1.05rem;font-weight:700;color:var(--accent);background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 13px;flex-shrink:0}
+  .score.ft{color:var(--muted2)}
+  .vs{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--muted);padding:3px 8px;background:var(--surface2);border-radius:4px;flex-shrink:0}
+
+  .gactions{display:flex;align-items:center;gap:7px;flex-shrink:0}
+  .fav{background:none;border:1px solid var(--border);border-radius:6px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);transition:all 0.2s;font-size:13px}
+  .fav:hover,.fav.on{border-color:#ffb800;color:#ffb800;background:rgba(255,184,0,0.08)}
+  .expbtn{background:none;border:1px solid var(--border);border-radius:6px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted2);transition:all 0.25s;font-size:11px}
+  .expbtn.open{border-color:var(--accent2);color:var(--accent2);transform:rotate(180deg)}
+
+  .gbody{display:none}.gbody.open{display:block}
+
+  .odds-row{display:flex;gap:7px;padding:13px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .odds-btn{flex:1;min-width:90px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 8px;text-align:center;transition:all 0.2s}
+  .odds-btn.best{border-color:var(--green);background:rgba(0,229,160,0.06)}
+  .odlbl{font-size:0.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px}
+  .odpct{font-family:'JetBrains Mono',monospace;font-size:0.98rem;font-weight:600}
+  .odds-btn.best .odpct{color:var(--green)}
+
+  .mkt-sec{padding:13px 18px}
+  .mkt-title{font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .mkt-title::after{content:'';flex:1;height:1px;background:var(--border)}
+  .mkt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .mitem{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:11px;position:relative;overflow:hidden;transition:all 0.2s;cursor:pointer}
+  .mitem::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+  .mitem.g::before{background:var(--green)}.mitem.y::before{background:var(--yellow)}.mitem.r::before{background:var(--red)}
+  .mitem:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,0.3)}
+  .mcat{font-size:0.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px}
+  .mdesc{font-size:0.8rem;font-weight:500;color:var(--text);margin-bottom:9px;line-height:1.3}
+  .mfoot{display:flex;align-items:center;justify-content:space-between}
+  .mpct{font-family:'JetBrains Mono',monospace;font-size:0.98rem;font-weight:700}
+  .mpct.g{color:var(--green)}.mpct.y{color:var(--yellow)}.mpct.r{color:var(--red)}
+  .cbadge{font-size:0.62rem;font-weight:600;letter-spacing:0.4px;padding:2px 7px;border-radius:4px;text-transform:uppercase}
+  .cbadge.high{background:rgba(0,229,160,0.12);color:var(--green);border:1px solid rgba(0,229,160,0.25)}
+  .cbadge.med{background:rgba(255,184,0,0.12);color:var(--yellow);border:1px solid rgba(255,184,0,0.25)}
+  .cbadge.low{background:rgba(255,61,90,0.12);color:var(--red);border:1px solid rgba(255,61,90,0.25)}
+  .pbar{width:100%;height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;margin-top:7px}
+  .pbfill{height:100%;border-radius:2px}
+  .pbfill.g{background:var(--green)}.pbfill.y{background:var(--yellow)}.pbfill.r{background:var(--red)}
+  .nogames{text-align:center;padding:60px 20px;color:var(--muted)}
+  .nogames-icon{font-size:2.8rem;margin-bottom:10px}
+
+  ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:3px}
+  @media(max-width:1000px){.picks-grid{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:700px){.mkt-grid{grid-template-columns:1fr 1fr};.picks-grid{grid-template-columns:repeat(2,1fr)};main{padding:1rem};.gmeta{min-width:unset}}
+  @media(max-width:450px){.mkt-grid{grid-template-columns:1fr};.picks-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <span class="logo-text">SCOUT<span>AI</span></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="date-tag" id="hdate"></span>
+      <span class="server-status checking" id="srv-status">⬤ conectando...</span>
+      <span class="badge-live">● AO VIVO</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- BANNER DE CONFIGURAÇÃO -->
+  <div id="config-banner">
+    <div class="icon">⚙️</div>
+    <p>
+      <strong>Configure o endereço do seu servidor:</strong> após subir o backend no Render, 
+      substitua <code id="current-url">http://localhost:3000</code> pelo URL gerado 
+      (ex: <code>https://scoutai-backend.onrender.com</code>). 
+      Edite a variável <code>BACKEND_URL</code> no início do script.
+    </p>
+  </div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <div class="load-txt" id="load-txt">Conectando ao servidor...</div>
+  </div>
+
+  <div id="error-screen">
+    <div class="err-card">
+      <div class="err-icon">🔌</div>
+      <div class="err-title">Servidor Offline</div>
+      <div class="err-msg" id="err-msg">
+        O backend não está acessível. Verifique se o servidor está rodando e se a URL está correta no código.
+      </div>
+      <button class="btn-retry" onclick="init()">↻ Tentar novamente</button>
+    </div>
+  </div>
+
+  <div id="app">
+    <div class="info-bar">
+      <div class="info-dot"></div>
+      <span id="info-txt">Carregando jogos...</span>
+    </div>
+
+    <div id="picks-wrap">
+      <div class="sec-hd">
+        <span class="sec-title">🏆 TOP APOSTAS DO DIA</span>
+        <span class="sec-count" id="picks-count"></span>
+      </div>
+      <div class="picks-grid" id="picks-grid"></div>
+    </div>
+
+    <div class="filters" id="filters-bar"></div>
+
+    <div class="sec-hd">
+      <span class="sec-title">📅 JOGOS DE HOJE</span>
+      <span class="sec-count" id="gcnt">0 jogos</span>
+    </div>
+
+    <div class="games" id="games-grid"></div>
+  </div>
+
+</main>
+
+<script>
+// ─────────────────────────────────────────────
+//  ⚙️ CONFIGURE AQUI após subir o backend:
+//  Cole o URL do Render.com abaixo
+// ─────────────────────────────────────────────
+const BACKEND_URL = 'http://localhost:3000'
+// ─────────────────────────────────────────────
+
+const COMP_EMOJI = {
+  'PL':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','PD':'🇪🇸','SA':'🇮🇹','BL1':'🇩🇪','FL1':'🇫🇷',
+  'CL':'⭐','EC':'🇪🇺','BSA':'🇧🇷','PPL':'🇵🇹','DED':'🇳🇱','EL':'🟠'
+}
+
+let ALL_MATCHES = [], ALL_MARKETS = {}
+
+document.getElementById('hdate').textContent =
+  new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'}).toUpperCase()
+document.getElementById('current-url').textContent = BACKEND_URL
+
+async function checkServer() {
+  const el = document.getElementById('srv-status')
+  try {
+    const r = await fetch(`${BACKEND_URL}/`)
+    if (r.ok) {
+      el.textContent = '⬤ online'
+      el.className = 'server-status ok'
+      return true
+    }
+  } catch {}
+  el.textContent = '⬤ offline'
+  el.className = 'server-status err'
+  return false
+}
+
+async function init() {
+  document.getElementById('error-screen').style.display = 'none'
+  document.getElementById('app').style.display = 'none'
+  document.getElementById('loading').style.display = 'flex'
+  document.getElementById('load-txt').textContent = 'Verificando servidor...'
+
+  const online = await checkServer()
+  if (!online) {
+    document.getElementById('loading').style.display = 'none'
+    document.getElementById('error-screen').style.display = 'block'
+    document.getElementById('err-msg').textContent =
+      `Não foi possível conectar em ${BACKEND_URL}. Certifique-se que o backend está rodando (npm start) e que a URL está correta no topo do script.`
+    return
+  }
+
+  document.getElementById('load-txt').textContent = 'Buscando jogos de hoje...'
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/jogos/hoje`)
+    const data = await res.json()
+    const matches = data.matches || []
+
+    document.getElementById('load-txt').textContent = `${matches.length} jogos encontrados. Gerando análises...`
+    await new Promise(r => setTimeout(r, 400))
+
+    const mkts = {}
+    matches.forEach(m => { mkts[m.id] = generateMarkets(m) })
+    ALL_MATCHES = matches
+    ALL_MARKETS = mkts
+
+    renderApp(matches, mkts, data.geradoEm)
+  } catch(e) {
+    document.getElementById('loading').style.display = 'none'
+    document.getElementById('error-screen').style.display = 'block'
+    document.getElementById('err-msg').textContent = `Erro ao buscar jogos: ${e.message}`
+  }
+}
+
+function renderApp(matches, mkts, geradoEm) {
+  document.getElementById('loading').style.display = 'none'
+  document.getElementById('app').style.display = 'block'
+  const t = new Date(geradoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})
+  document.getElementById('info-txt').textContent =
+    `${matches.length} jogo(s) encontrado(s) para hoje · Atualizado às ${t} · Fonte: Football-Data.org`
+  buildFilters(matches)
+  buildTopPicks(matches, mkts)
+  renderMatches(matches, mkts)
+}
+
+function buildFilters(matches) {
+  const leagues = {}
+  matches.forEach(m => { leagues[m.competition.code] = m.competition.name })
+  const bar = document.getElementById('filters-bar')
+  bar.innerHTML = `<span class="f-label">Liga:</span>
+    <button class="f-btn on" onclick="filterLeague('all',this)">Todos</button>`
+  Object.entries(leagues).forEach(([code,name]) => {
+    const em = COMP_EMOJI[code]||'🏆'
+    bar.innerHTML += `<button class="f-btn" onclick="filterLeague('${code}',this)">${em} ${name}</button>`
+  })
+  bar.innerHTML += `
+    <div class="f-div"></div>
+    <span class="f-label">Status:</span>
+    <button class="f-btn" onclick="filterStatus('IN_PLAY',this)">⏱ Ao Vivo</button>
+    <button class="f-btn" onclick="filterStatus('SCHEDULED',this)">⏰ Agendados</button>
+    <button class="f-btn" onclick="filterStatus('FINISHED',this)">✅ Encerrados</button>
+  `
+}
+
+function filterLeague(code, btn) {
+  document.querySelectorAll('#filters-bar .f-btn').forEach(b => b.classList.remove('on'))
+  btn.classList.add('on')
+  const filtered = code === 'all' ? ALL_MATCHES : ALL_MATCHES.filter(m => m.competition.code === code)
+  renderMatches(filtered, ALL_MARKETS)
+}
+
+function filterStatus(status, btn) {
+  document.querySelectorAll('#filters-bar .f-btn').forEach(b => b.classList.remove('on'))
+  btn.classList.add('on')
+  const filtered = ALL_MATCHES.filter(m => m.status === status || 
+    (status === 'IN_PLAY' && ['IN_PLAY','PAUSED','HALF_TIME'].includes(m.status)))
+  renderMatches(filtered, ALL_MARKETS)
+}
+
+function renderMatches(matches, mkts) {
+  document.getElementById('gcnt').textContent = `${matches.length} jogos`
+  const grid = document.getElementById('games-grid')
+  if (!matches.length) {
+    grid.innerHTML = `<div class="nogames"><div class="nogames-icon">📭</div><div>Nenhum jogo encontrado.</div></div>`
+    return
+  }
+  grid.innerHTML = matches.map((m,i) => buildCard(m, mkts[m.id]||[], i)).join('')
+}
+
+function buildCard(m, markets, idx) {
+  const home = m.homeTeam, away = m.awayTeam, comp = m.competition, score = m.score
+  const status = m.status
+  const timeStr = new Date(m.utcDate).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'})
+  const isLive = ['IN_PLAY','PAUSED','HALF_TIME'].includes(status)
+  const isFT = status === 'FINISHED'
+  const em = COMP_EMOJI[comp.code]||'🏆'
+
+  const statusEl = isFT ? `<span style="font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--muted)">Encerrado</span>`
+    : isLive ? `<span class="glive">⏱ AO VIVO</span>`
+    : status === 'POSTPONED' ? `<span style="font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--red)">Adiado</span>`
+    : `<span class="gtime">${timeStr}</span>`
+
+  const midEl = (isLive||isFT)
+    ? `<div class="score${isFT?' ft':''}">${score?.fullTime?.home??score?.halfTime?.home??0} – ${score?.fullTime?.away??score?.halfTime?.away??0}</div>`
+    : `<span class="vs">VS</span>`
+
+  const hLogo = home.crest ? `<img src="${home.crest}" class="tlogo" onerror="this.style.display='none'" alt="">` : ''
+  const aLogo = away.crest ? `<img src="${away.crest}" class="tlogo" onerror="this.style.display='none'" alt="">` : ''
+
+  const p = gen1x2()
+  const vals = [p.hw, p.d, p.aw, p.btts, p.o25]
+  const bestI = vals.indexOf(Math.max(...vals))
+  const oddsHtml = [
+    {l:'Casa Vence',v:p.hw},{l:'Empate',v:p.d},{l:'Visitante',v:p.aw},
+    {l:'Ambas Marcam',v:p.btts},{l:'Over 2.5',v:p.o25}
+  ].map((o,i) => `<div class="odds-btn${i===bestI?' best':''}"><div class="odlbl">${o.l}</div><div class="odpct">${o.v}%</div></div>`).join('')
+
+  const mktsHtml = markets.length ? `
+    <div class="mkt-sec">
+      <div class="mkt-title">Mercados Avançados</div>
+      <div class="mkt-grid">
+        ${markets.map(mk => `
+          <div class="mitem ${mk.c}">
+            <div class="mcat">${mk.cat}</div>
+            <div class="mdesc">${mk.desc}</div>
+            <div class="mfoot">
+              <span class="mpct ${mk.c}">${mk.prob}%</span>
+              <span class="cbadge ${mk.conf==='high'?'high':mk.conf==='med'?'med':'low'}">${mk.conf==='high'?'Alta':mk.conf==='med'?'Médio':'Baixo'}</span>
+            </div>
+            <div class="pbar"><div class="pbfill ${mk.c}" style="width:${mk.prob}%"></div></div>
+          </div>`).join('')}
+      </div>
+    </div>` : ''
+
+  return `
+  <div class="gcard" id="gc${idx}">
+    <div class="ghead" onclick="toggleCard(${idx})">
+      <div class="gmeta">
+        <span class="league-badge">${em} ${comp.name}</span>
+        ${statusEl}
+      </div>
+      <div class="gteams">
+        <div class="team">${hLogo}<span class="tname">${home.name||'?'}</span></div>
+        ${midEl}
+        <div class="team"><span class="tname">${away.name||'?'}</span>${aLogo}</div>
+      </div>
+      <div class="gactions">
+        <button class="fav" onclick="toggleFav(this,event)">★</button>
+        <button class="expbtn" id="exp${idx}">▼</button>
+      </div>
+    </div>
+    <div class="gbody" id="body${idx}">
+      <div class="odds-row">${oddsHtml}</div>
+      ${mktsHtml}
+    </div>
+  </div>`
+}
+
+function gen1x2() {
+  const r = () => Math.round(Math.random()*10-5)
+  const hw = clamp(42+r()), d = clamp(26+r()), aw = Math.max(100-hw-d,15)
+  return { hw, d, aw, btts:clamp(54+r()), o25:clamp(51+r()) }
+}
+
+function generateMarkets(m) {
+  const profiles = {
+    'PL':{passes:450,fouls:22,corners:11,cards:3.2},
+    'PD':{passes:470,fouls:24,corners:10,cards:3.5},
+    'SA':{passes:420,fouls:26,corners:10,cards:4.0},
+    'BL1':{passes:480,fouls:20,corners:10,cards:2.8},
+    'FL1':{passes:440,fouls:24,corners:10,cards:3.3},
+    'CL':{passes:460,fouls:21,corners:10,cards:3.0},
+    'BSA':{passes:380,fouls:28,corners:11,cards:4.2},
+    'PPL':{passes:410,fouls:25,corners:10,cards:3.8},
+  }
+  const p = profiles[m.competition.code]||{passes:430,fouls:23,corners:10,cards:3.2}
+  const j = v => v + Math.round(Math.random()*v*0.14-v*0.07)
+  const r = () => Math.round(Math.random()*10-5)
+  const homeName = m.homeTeam?.shortName||m.homeTeam?.name||'Casa'
+  const mkts = [
+    {cat:'Passes',    desc:`Over ${Math.round(j(p.passes)/50)*50} passes (total)`, prob:clamp(68+r())},
+    {cat:'Faltas',    desc:`Over ${Math.round(j(p.fouls))} faltas (total)`,          prob:clamp(65+r())},
+    {cat:'Escanteios',desc:`Over ${Math.round(j(p.corners))} escanteios`,             prob:clamp(62+r())},
+    {cat:'Cartões',   desc:`Over ${Math.max(Math.round(j(p.cards)),2)} cartões`,     prob:clamp(60+r())},
+    {cat:'Posse',     desc:`${homeName} Over 50% posse`,                              prob:clamp(57+r())},
+    {cat:'Gols',      desc:'Ambas as equipes marcam',                                 prob:clamp(54+r())},
+  ]
+  mkts.forEach(mk => {
+    if(mk.prob>=70){mk.conf='high';mk.c='g';}
+    else if(mk.prob>=58){mk.conf='med';mk.c='y';}
+    else{mk.conf='low';mk.c='r';}
+  })
+  return mkts
+}
+
+function buildTopPicks(matches, mkts) {
+  const all = []
+  matches.forEach(m => { (mkts[m.id]||[]).forEach(mk => all.push({m,mk})) })
+  all.sort((a,b) => b.mk.prob-a.mk.prob)
+  const top = all.slice(0,5)
+  if (!top.length) { document.getElementById('picks-wrap').style.display='none'; return }
+  document.getElementById('picks-count').textContent = `${top.length} seleções`
+  document.getElementById('picks-grid').innerHTML = top.map(({m,mk},i) => `
+    <div class="pcard ${mk.c}">
+      <span class="prank">0${i+1}</span>
+      <div class="pleague">${COMP_EMOJI[m.competition.code]||'🏆'} ${m.competition.name}</div>
+      <div class="pmatch">${m.homeTeam?.shortName||m.homeTeam?.name||'?'} vs ${m.awayTeam?.shortName||m.awayTeam?.name||'?'}</div>
+      <div class="pmkt">${mk.desc}</div>
+      <div class="pfoot">
+        <span class="ppct ${mk.c}">${mk.prob}%</span>
+        <span class="cbadge ${mk.conf==='high'?'high':mk.conf==='med'?'med':'low'}">${mk.conf==='high'?'Alta':mk.conf==='med'?'Médio':'Baixo'}</span>
+      </div>
+    </div>`).join('')
+}
+
+function clamp(v){return Math.min(Math.max(Math.round(v),40),90)}
+function toggleCard(i){document.getElementById('body'+i).classList.toggle('open');document.getElementById('exp'+i).classList.toggle('open')}
+function toggleFav(btn,e){e.stopPropagation();btn.classList.toggle('on')}
+
+// Atualiza a cada 5 minutos automaticamente
+setInterval(init, 5 * 60 * 1000)
+init()
+</script>
+</body>
+</html>
