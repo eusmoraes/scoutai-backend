@@ -48,11 +48,16 @@ app.get('/api/jogos/hoje', async (req, res) => {
     const cached = getCache('jogos_hoje')
     if (cached) return res.json({ source: 'cache', ...cached })
 
-    const data = await fdFetch('/matches')
+    // Data de hoje no fuso de Brasília
+    const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+
+    const data = await fdFetch(`/matches?dateFrom=${hoje}&dateTo=${hoje}`)
+
     const result = {
       total: data.matches?.length || 0,
       matches: data.matches || [],
-      geradoEm: new Date().toISOString()
+      geradoEm: new Date().toISOString(),
+      data: hoje
     }
     setCache('jogos_hoje', result)
     res.json({ source: 'api', ...result })
